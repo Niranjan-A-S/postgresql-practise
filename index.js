@@ -36,11 +36,16 @@ function validateCountry(req, res, next) {
     next();
 }
 
+//function to check whether the countries are visited
+async function checkVisited() {
+    const result = await pool.query('SELECT country_code FROM visited_countries');
+    return result.rows.map(country => country.country_code);
+}
+
 // Route handler to get visited countries
-app.get('/visited-countries', async (req, res) => {
+app.get('/visited-countries', async (req, res, next) => {
     try {
-        const result = await pool.query('SELECT country_code FROM visited_countries');
-        const countries = result.rows.map(country => country.country_code);
+        const countries = await checkVisited();
         res.send({ countries, total: countries.length });
     } catch (error) {
         next(error);
@@ -48,16 +53,17 @@ app.get('/visited-countries', async (req, res) => {
 });
 
 // Route handler to add a country to visited countries
-app.post('/add', validateCountry, async (req, res) => {
+app.post('/add', validateCountry, async (req, res, next) => {
     const { country } = req.body;
     try {
-        const result = await pool.query('SELECT country_code FROM countries WHERE country_name = $1', [country]);
+        const result = await pool.query("SELECT country_code FROM countries WHERE LOWER(country_name) LIKE '%' || $1 || '%' ", [country.toLowerCase()]);
         if (result.rows.length === 0) {
             return res.status(404).json({
                 message: 'Country not found!',
             });
         }
         const countryCode = result.rows[0].country_code;
+
         const countryExist = (await pool.query('SELECT country_code FROM visited_countries WHERE country_code = $1', [countryCode])).rows.length > 0;
         if (countryExist) {
             return res.status(409).json({
