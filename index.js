@@ -37,16 +37,28 @@ function validateCountry(req, res, next) {
 }
 
 //function to check whether the countries are visited
-async function checkVisited() {
-    const result = await pool.query('SELECT country_code FROM visited_countries');
+async function checkVisited(userId) {
+    const result = await pool.query('SELECT country_code FROM visited_countries JOIN users ON users.id = user_id WHERE user_id = $1', [userId]);
     return result.rows.map(country => country.country_code);
 }
 
+async function getCurrentUser(userId) {
+    const result = await pool.query("SELECT * FROM users");
+    const users = result.rows;
+    return users.find((user) => user.id == userId)
+}
+
 // Route handler to get visited countries
-app.get('/visited-countries', async (req, res, next) => {
+app.get('/:userId', async (req, res, next) => {
     try {
-        const countries = await checkVisited();
-        res.send({ countries, total: countries.length });
+        const userId = +req.params.userId;
+        const countriesVisited = await checkVisited(userId);
+        const currentUser = await getCurrentUser(userId);
+        res.json({
+            countriesVisited,
+            total: countriesVisited.length,
+            currentUser,
+        });
     } catch (error) {
         next(error);
     }
